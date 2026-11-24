@@ -1,0 +1,122 @@
+diff --git a/Dockerfile b/Dockerfile
+index 6472a58..5174105 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -10,7 +10,9 @@
+ # Base image: Debian 12 slim. We need a modern glibc (agate is linked
+ # against glibc 2.35+), curl+ca-certs for downloading the agate
+ # release, python3 + Starlette/Uvicorn for the HTTP sidecar (landing,
+-# health-check, and gemtext source editor), and tini so SIGTERM from
++# health-check, and gemtext source editor), nodejs for the Gemini front
++# door (routes /splendor/ to the game, everything else to agate), and
++# tini so SIGTERM from
+ # `docker stop` reaches both children via our start.sh supervisor.
+ FROM debian:bookworm-slim
+ 
+@@ -26,7 +28,7 @@ ARG AGATE_SHA256=18773fa82b70160e77a64c788647c8e252f06e9bc2cd3f1cacea2e159206b0e
+ 
+ RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+-        ca-certificates curl python3 python3-pip tini \
++        ca-certificates curl nodejs python3 python3-pip tini \
+  && rm -rf /var/lib/apt/lists/*
+ 
+ # Pin Starlette + Uvicorn versions so the editor's behaviour can't
+@@ -58,6 +60,9 @@ RUN set -eux; \
+ COPY start.sh /usr/local/bin/start.sh
+ COPY sidecar/ /usr/local/share/openhost-gemini/sidecar/
+ COPY default_content/ /usr/local/share/openhost-gemini/default_content/
++# The Gemini front door on :1965 and the Splendor game it serves under
++# /splendor/ (plain Node, no npm dependencies).
++COPY splendor/*.js splendor/*.json /usr/local/share/openhost-gemini/splendor/
+ RUN chmod +x /usr/local/bin/start.sh
+ 
+ # We run agate and the sidecar as the container's root user. Under
+diff --git a/start.sh b/start.sh
+index dad3e9e..996bb0f 100644
+--- a/start.sh
++++ b/start.sh
+@@ -16,8 +16,11 @@
+ #   4. Launch the HTTP sidecar (Starlette + Uvicorn) on
+ #      :${STATUS_PORT:-8080} for the OpenHost router's health-check,
+ #      landing page, and gemtext source editor.
+-#   5. Launch agate in the foreground as an unprivileged user.
+-#   6. Supervise both children: if either exits, kill the other and
++#   5. Launch agate on a loopback-only port (AGATE_PORT, default 1966).
++#   6. Launch the Gemini front door on the public :1965. It answers
++#      /splendor/... itself (the Splendor game) and passes every other
++#      request through to agate unchanged.
++#   7. Supervise all three children: if any exits, kill the others and
+ #      exit so OpenHost restarts the container.
+ 
+ set -euo pipefail
+@@ -28,6 +31,8 @@ DATA_DIR="${OPENHOST_APP_DATA_DIR:-/var/lib/openhost-gemini}"
+ CONTENT_DIR="$DATA_DIR/content"
+ CERTS_DIR="$DATA_DIR/certs"
+ export STATUS_PORT="${STATUS_PORT:-8080}"
++AGATE_PORT="${AGATE_PORT:-1966}"
++SPLENDOR_DIR="/usr/local/share/openhost-gemini/splendor"
+ DEFAULT_CONTENT_SRC="/usr/local/share/openhost-gemini/default_content"
+ 
+ resolve_hostname() {
+@@ -111,7 +116,8 @@ fi
+ # before backgrounding completes.
+ STATUS_PID=""
+ AGATE_PID=""
+-trap 'kill -TERM ${AGATE_PID:-} ${STATUS_PID:-} 2>/dev/null; wait' TERM INT
++FRONT_PID=""
++trap 'kill -TERM ${AGATE_PID:-} ${STATUS_PID:-} ${FRONT_PID:-} 2>/dev/null; wait' TERM INT
+ 
+ log "starting HTTP sidecar on :$STATUS_PORT"
+ # Launch via uvicorn so we get HTTP/1.1 keep-alive, proper graceful
+@@ -127,31 +133,40 @@ python3 -m uvicorn server:app \
+ STATUS_PID=$!
+ cd - >/dev/null
+ 
+-log "starting agate for $HOSTNAME on :1965"
+-# --skip-port-check: OpenHost may publish us on a host port other
+-# than 1965 in the future (e.g. if an operator remaps the
+-# [[ports]] entry). The request URL Gemini clients send to us
+-# through DNS + OpenHost's publish will still carry the public
+-# port. With the current cloudinabottle.toml this is harmless; leaving
+-# the flag on keeps things robust if the mapping ever changes.
++log "starting agate for $HOSTNAME on 127.0.0.1:$AGATE_PORT (behind the front door)"
++# --skip-port-check: the request URL clients send carries the public
++# port (1965) while agate listens on a loopback port behind the front
++# door, so agate must not compare the two.
++# --log-ip: every request reaches agate from the front door, so these
++# log lines show 127.0.0.1; the front door logs /splendor requests.
+ /usr/local/bin/agate \
+     --hostname "$HOSTNAME" \
+     --content "$CONTENT_DIR" \
+     --certs "$CERTS_DIR" \
+-    --addr '0.0.0.0:1965' \
++    --addr "127.0.0.1:$AGATE_PORT" \
+     --skip-port-check \
+     --log-ip &
+ AGATE_PID=$!
+ 
++log "starting Gemini front door on :1965"
++# Waits for agate to write its certificate on first boot, then serves
++# the same certificate on the public port.
++CERTS_DIR="$CERTS_DIR" \
++SPLENDOR_DATA_DIR="$DATA_DIR/splendor" \
++AGATE_ADDR="127.0.0.1:$AGATE_PORT" \
++LISTEN_PORT=1965 \
++    node "$SPLENDOR_DIR/server.js" &
++FRONT_PID=$!
++
+ # `set -e` is deliberately off around wait -n so a non-zero child
+ # exit doesn't abort the supervisor before we reach the kill-other
+ # step below.
+ set +e
+-wait -n "$AGATE_PID" "$STATUS_PID"
++wait -n "$AGATE_PID" "$STATUS_PID" "$FRONT_PID"
+ EXIT_CODE=$?
+ set -e
+ 
+ log "child exited (code=$EXIT_CODE); stopping container"
+-kill -TERM "$AGATE_PID" "$STATUS_PID" 2>/dev/null || true
++kill -TERM "$AGATE_PID" "$STATUS_PID" "$FRONT_PID" 2>/dev/null || true
+ wait || true
+ exit "$EXIT_CODE"

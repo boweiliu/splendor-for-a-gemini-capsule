@@ -1,0 +1,108 @@
+# Machine-readable manifest for this template. The sibling
+# template.md holds the prose, the Requirements list, and the two
+# append-only history logs; this file is authoritative for everything
+# below. Both are generated together -- validate_template.py fails if
+# they disagree.
+format = "v2"
+
+[template]
+slug = "splendor-for-a-gemini-capsule"
+title = "Splendor for a Gemini capsule"
+description = "Skill that adds the Splendor card game under /splendor/ of a bottled-gemini capsule on a Cloud in a Bottle instance: front door, game, tests and the startup patch."
+thumbnail = "template.svg"
+version = "v1"
+
+# How this template is DERIVED from the workspace it came from. An
+# update re-runs this recipe rather than diffing two repos, which is what
+# keeps an exclusion excluded even though the thing still exists upstream.
+[recipe]
+include = [".agents/skills/add-splendor-to-gemini-capsule"]
+data_include = []
+# FILL IN: one entry per deliberate exclusion (paths left out, and
+# features stripped from an included path). Leave [] if nothing was.
+exclude = [".external_worktrees/ (the capsule clone the skill works in; the adopter makes their own)", "the owner API token secret file (the adopter supplies their own through a secret card)"]
+# FILL IN: one entry per published-version modification, stated as a RULE
+# and NEVER the removed value -- the point of a modification is that the
+# value does not ship. e.g. "replace the hardcoded team channel with a
+# neutral default". Leave [] if there were none.
+modification_rules = []
+
+# Everything an adopter must deal with before this is really theirs.
+# One list -- but each entry's KIND says how it is handled, because the
+# two are handled at different times by different mechanisms:
+#
+#   permission / secret / llm = ACTIVATION. The adopting agent acts on
+#   these FIRST and BY ITSELF, initiating each latchkey permission
+#   request and each secret request before asking the user anything.
+#   Every one of them must have a matching requires_ line in template.md
+#   and vice versa -- the validator checks that, because an adopter once
+#   never got prompted for a permission the app needed.
+#
+#   The [[requirements.secret]] entries below were AGGREGATED from the
+#   included apps' app.toml [[secrets]] and skills' SKILL.md secrets:
+#   declarations, plus every data/.secrets/<file>.env the included
+#   mcp-servers.json and supervisord programs run under. Fix a wrong one
+#   at its declaration, not here.
+#
+#   adaptation = worked through INTERACTIVELY with the user afterwards.
+#   Prose on both sides, so it is not cross-checked.
+#
+# FILL IN, e.g.:
+#   [[requirements.permission]]
+#   scope = "slack-api"
+#   permission = "slack-read-all"
+#
+#   [requirements.llm]
+#   method = "keyed"   # keyed (an API key, e.g. ANTHROPIC_API_KEY) | keyless (a subscription CLI, e.g. claude -p)
+#
+#   [[requirements.adaptation]]
+#   summary = "the digest channel is hardcoded"
+#   resolution = "ask the user which channel to watch"
+[requirements]
+
+[[requirements.secret]]
+file = "cloud-in-a-bottle-owner"
+variables = ["CLOUD_IN_A_BOTTLE_OWNER_TOKEN"]
+note = "the owner API token of the Cloud in a Bottle instance that runs the capsule, sent as X-OpenHost-Authorization: Bearer and read only through with_secrets.py"
+
+[[requirements.adaptation]]
+summary = "a bottled-gemini capsule is needed: a Cloud in a Bottle instance running the app deployed from a git repo as the app named gemini, with Dockerfile and start.sh close to upstream commit d562a41"
+resolution = "ask which instance and repo; if the Dockerfile or start.sh differ from upstream, apply the patch's changes by hand"
+
+[[requirements.adaptation]]
+summary = "the patched capsule must be pushed to a git remote the instance can clone"
+resolution = "ask where to push (a private repo on the adopter's own host works) and get push access from the user"
+
+[[requirements.adaptation]]
+summary = "files/splendor/copy.js has 22 [BOWEI: ...] placeholders for every string the game shows that is not from the original web game; they ship unchanged"
+resolution = "ask the owner for each string and write exactly what they say; never write the wording for them"
+
+[[requirements.adaptation]]
+summary = "the link to /splendor/ on the capsule's front page (skill step 8) needs link text, which is the owner's wording"
+resolution = "ask the owner for the link text before editing index.gmi"
+
+[[requirements.adaptation]]
+summary = "the upstream bottled-gemini repo has no licence file, so the patched capsule's repo has no clear licence"
+resolution = "keep the patched capsule in a private repo unless the owner decides otherwise"
+
+# What the included code needs INSTALLED. apt takes bare names: versions
+# are a function of the apt snapshot timestamp, so replaying names at the
+# adopter's timestamp yields versions consistent with the rest of their
+# environment. The other sources are not snapshot-pinned, so for them the
+# recorded version IS the pin (name = version).
+#
+# FILL IN from what the included code actually needs, e.g.:
+#   apt = ["poppler-utils"]
+#   [environment.npm_global]
+#   "@slack/cli" = "2.1.0"
+#   [environment.uv_tools]
+#   yt-dlp = "2026.7.1"
+#   [environment.cargo_crates]
+#   fd-find = "9.0.0"
+#
+# For an install with no package database (a URL-fetched binary, a browser),
+# ship a system/scripts/env.d/<NNNN>-<slug>-<name>.sh unit with NNNN >= 2000,
+# include it in the recipe above, and list it in env_d_units.
+[environment]
+apt = []
+env_d_units = []

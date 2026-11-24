@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" role="img" aria-label="Splendor game cards on a Gemini capsule page">
+  <rect width="240" height="160" rx="12" fill="#1b1f33"/>
+  <rect x="14" y="12" width="212" height="18" rx="5" fill="#2b3150"/>
+  <circle cx="26" cy="21" r="4" fill="#e8c46a"/>
+  <rect x="38" y="18" width="88" height="6" rx="3" fill="#8e97c4"/>
+  <text x="206" y="25" font-family="monospace" font-size="9" fill="#8e97c4" text-anchor="end">:1965</text>
+  <g>
+    <rect x="22" y="44" width="48" height="66" rx="6" fill="#f2ead7"/>
+    <rect x="22" y="44" width="48" height="16" rx="6" fill="#3f8f5f"/>
+    <polygon points="46,70 56,82 46,96 36,82" fill="#3f8f5f"/>
+  </g>
+  <g>
+    <rect x="82" y="44" width="48" height="66" rx="6" fill="#f2ead7"/>
+    <rect x="82" y="44" width="48" height="16" rx="6" fill="#3a6fb5"/>
+    <polygon points="106,70 116,82 106,96 96,82" fill="#3a6fb5"/>
+  </g>
+  <g>
+    <rect x="142" y="44" width="48" height="66" rx="6" fill="#f2ead7"/>
+    <rect x="142" y="44" width="48" height="16" rx="6" fill="#c0463f"/>
+    <polygon points="166,70 176,82 166,96 156,82" fill="#c0463f"/>
+  </g>
+  <circle cx="208" cy="62" r="8" fill="#e8c46a"/>
+  <circle cx="208" cy="82" r="8" fill="#f2ead7"/>
+  <circle cx="208" cy="102" r="8" fill="#3f8f5f"/>
+  <rect x="22" y="124" width="196" height="22" rx="5" fill="#2b3150"/>
+  <text x="32" y="139" font-family="monospace" font-size="10" fill="#e8c46a">&gt;</text>
+  <rect x="44" y="132" width="6" height="10" fill="#e8c46a"/>
+</svg>
